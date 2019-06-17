@@ -1,4 +1,8 @@
 # dudenetes
+
+<img src="https://dudeism.com/wp-content/uploads/2010/02/dude-vinci.png" align="left" width="20%">
+<img src="https://upload.wikimedia.org/wikipedia/en/0/00/Kubernetes_%28container_engine%29.png" align="right" width="20%">
+
 The *most relaxed* testing framework of Kubernetes in the world
 
 ## Dudelopers abide!
@@ -22,6 +26,8 @@ Thankie
 
 It's uh... uh... it's down there somewhere, let me take another look. Does this look to you as a proper repository to you, man? Does this place look like I'm fucking certified? The toilet seat's up man!
 Just be patient and don't unirinate on the rug.
+
+<img src="https://github.com/DATA-DOG/godog/raw/master/logo.png" align="left" width="20%">
 
 ### What is Godog, dude?
 
