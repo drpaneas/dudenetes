@@ -24,8 +24,10 @@ Thankie
 
 ## Where's the documentation, Lebowski?
 
-It's uh... uh... it's down there somewhere, let me take another look. Does this look to you as a proper repository to you, man? Does this place look like I'm fucking certified? The toilet seat's up man!
+It's uh... uh... it's down there somewhere, let me take another look. Does this look to you as a proper repository to you, man? Does this place look like certified? The toilet seat's up man!
 Just be patient and don't unirinate on the rug.
+
+But! You can find a nice tutorial at our [Dudewiki](https://github.com/drpaneas/dudenetes/wiki).
 
 <img src="https://github.com/DATA-DOG/godog/raw/master/logo.png" align="left" width="20%">
 
