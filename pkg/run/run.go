@@ -156,6 +156,48 @@ func SlowCmd(cmd string, timeout int) (string, error) {
 	return string(stdout.String()), nil
 }
 
+func SlowCmdEnv(cmd string, timeout int, env []string) (string, error) {
+	slice := splitCmd(cmd)
+	execute := exec.Command(slice[0], slice[1:]...)
+
+	// Use the current Env
+	execute.Env = os.Environ()
+
+	// Export env vars
+	execute.Env = append(execute.Env, env[0:]...)
+
+	// Use a bytes.Buffer to get the stdout
+	var stdout bytes.Buffer
+	execute.Stdout = &stdout
+
+	// Use a bytes.Buffer to ger the stderr
+	var stderr bytes.Buffer
+	execute.Stderr = &stderr
+
+	execute.Start()
+
+	// Use a channel to signal completion so we can use a select statement
+	done := make(chan error)
+	go func() { done <- execute.Wait() }()
+
+	// Start a timer
+	timer := time.After(time.Duration(timeout) * time.Second)
+
+	// Execute based on which channel we get the first message
+	select {
+	case <-timer:
+		// Timeout happened first, kill the process and print a message.
+		execute.Process.Kill()
+		return fmt.Sprintf("Command timed out (took more than %d seconds)", timer), fmt.Errorf("Needs more time than %d seconds", timer)
+	case err := <-done:
+		// Command completed before timeout. Print output and error if it exists.
+		if err != nil {
+			return string(fmt.Sprint(err) + ": " + stderr.String()), err
+		}
+	}
+	return string(stdout.String()), nil
+}
+
 func SlowCmdDir(cmd string, timeout int, directory string) (string, error) {
 	slice := splitCmd(cmd)
 	execute := exec.Command(slice[0], slice[1:]...)
@@ -214,6 +256,50 @@ func Cmd(cmd string) (string, error) {
 
 	slice := splitCmd(cmd)
 	execute := exec.Command(slice[0], slice[1:]...)
+
+	// Use a bytes.Buffer to get the stdout
+	var stdout bytes.Buffer
+	execute.Stdout = &stdout
+
+	// Use a bytes.Buffer to ger the stderr
+	var stderr bytes.Buffer
+	execute.Stderr = &stderr
+
+	execute.Start()
+
+	// Use a channel to signal completion so we can use a select statement
+	done := make(chan error)
+	go func() { done <- execute.Wait() }()
+
+	// Start a timer (minimm time to wait before bail out is 2 seconds)
+	timer := time.After(5 * time.Second)
+
+	// Execute based on which channel we get the first message
+	select {
+	case <-timer:
+		// Timeout happened first, kill the process and print a message.
+		execute.Process.Kill()
+		return fmt.Sprintf("Command timed out (took more than %d seconds)", timer), fmt.Errorf("Needs more time than %d seconds", timer)
+	case err := <-done:
+		// Command completed before timeout. Print output and error if it exists.
+		if err != nil {
+			return string(fmt.Sprint(err) + ": " + stderr.String()), err
+		}
+	}
+	return string(stdout.String()), nil
+}
+
+// Cmd runs a command and has a default timeout for 2 seconds
+func CmdEnv(cmd string, env []string) (string, error) {
+
+	slice := splitCmd(cmd)
+	execute := exec.Command(slice[0], slice[1:]...)
+
+	// Use the current Env
+	execute.Env = os.Environ()
+
+	// Export env vars
+	execute.Env = append(execute.Env, env[0:]...)
 
 	// Use a bytes.Buffer to get the stdout
 	var stdout bytes.Buffer
