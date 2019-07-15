@@ -1,0 +1,6 @@
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: 10.84.154.72:6443
+    unsafeSkipCAVerification: true
