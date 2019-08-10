@@ -20,30 +20,43 @@ func containsArg(slice []string, arg string) (bool, int) {
 	return false, 0
 }
 
+// SplitCmdInPipes returns a string with the output of the cmd execution and an error with its return code.
+// It takes as granted there are pipes "|" in the command.
+//
+// SplitCmdInPipes splits the command into sub-commands (separated by pipes "|")
+// and executes them in order (from left to right). When the first sub-command get executed
+// it passes its output as a positional parameter to the next sub-command. This continues
+// until there are no more sub-commands to be executed.
 func SplitCmdInPipes(cmd string) (string, error) {
-	var outputLeft string
 	var output string
 	var err error
-	// It takes as granted there are pipes in the string
-	slice := strings.Split(cmd, "|")
 
-	for key, value := range slice {
-		if key == 0 {
-			outputLeft, err = Cmd(value)
+	// NOTE: it takes as granted cmd is consisted of pipes
+	if !strings.Contains(cmd, "|") {
+		err = fmt.Errorf("the command: \"%s\" does NOT include any pipes '|'", cmd)
+		output = "(there is no output)"
+		return output, err
+	}
+	subCommands := strings.Split(cmd, "|")
+
+	// Loop through all the subCommands and execute them in pairs
+	// passing the output of the left one (left side of the pipe)
+	// as the last parameter to the right one (right side of the pipe)
+	for i, subCommand := range subCommands {
+		// Execute the first sub-command
+		if i == 0 {
+			output, err = Cmd(subCommand) // Execute the command (on the left side of the pipe)
 			if err != nil {
-				return outputLeft, err
+				return output, err
 			}
 			continue
 		}
 
-		outputRight, err := Pipe(outputLeft, value)
+		// Execute the next-subcommand (on the right side of the pipe)
+		// piping the output of the previous one (on the left side)
+		output, err = Pipe(output, subCommand)
 		if err != nil {
-			return outputRight, err
-		}
-		outputLeft = fmt.Sprint(outputRight)
-
-		if key == (len(slice) - 1) {
-			output = fmt.Sprint(outputLeft)
+			return output, err
 		}
 	}
 	return output, nil
@@ -81,7 +94,12 @@ func isError(err error) bool {
 	return (err != nil)
 }
 
-// Pipe blahblah
+// Pipe returns a string with the outputLeft of the given command and its return code.
+//
+// Pipe takes the outputLeft of a previously run command and saves it into "tmp" file.
+// and executes them in order (from left to right). When the first sub-command get executed
+// it passes its outputLeft as a positional parameter to the next sub-command. This continues
+// until there are no more sub-commands to be executed.
 func Pipe(output string, pipe string) (string, error) {
 	// Write the output we would like to pipe into a file
 	err := writeToFile("tmp", output)
@@ -243,9 +261,9 @@ func splitCmd(cmd string) []string {
 	if slice[0] == "" {
 		slice = slice[1:]
 	}
-	for key, value := range slice {
+	for i, value := range slice {
 		if value == "" {
-			slice = append(slice[:key], slice[key+1:]...)
+			slice = append(slice[:i], slice[i+1:]...)
 		}
 	}
 	return slice
