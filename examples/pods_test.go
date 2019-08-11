@@ -50,7 +50,7 @@ var nodeIP string
 
 func youTryToAccessItsHTTPAPIRequestingAgainstItsPodIPAddress(arg1 string) error {
 	cmd := "kubectl describe pod " + podName + " | grep IP"
-	output, err := run.SplitCmdInPipes(cmd)
+	output, err := run.CmdWithPipes(cmd)
 	if err != nil {
 		return run.LogError(arg1, output, err)
 	}

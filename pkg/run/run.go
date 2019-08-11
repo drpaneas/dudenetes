@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,14 +20,14 @@ func containsArg(slice []string, arg string) (bool, int) {
 	return false, 0
 }
 
-// SplitCmdInPipes returns a string with the output of the cmd execution and an error with its return code.
+// CmdWithPipes returns a string with the output of the cmd execution and an error with its return code.
 // It takes as granted there are pipes "|" in the command.
 //
-// SplitCmdInPipes splits the command into sub-commands (separated by pipes "|")
+// CmdWithPipes splits the command into sub-commands (separated by pipes "|")
 // and executes them in order (from left to right). When the first sub-command get executed
-// it passes its output as a positional parameter to the next sub-command. This continues
+// it passes its output and the the next sub-command to Pipe(). This continues
 // until there are no more sub-commands to be executed.
-func SplitCmdInPipes(cmd string) (string, error) {
+func CmdWithPipes(cmd string) (string, error) {
 	var output string
 	var err error
 
@@ -94,47 +94,49 @@ func isError(err error) bool {
 	return (err != nil)
 }
 
-// Pipe returns a string with the outputLeft of the given command and its return code.
-//
-// Pipe takes the outputLeft of a previously run command and saves it into "tmp" file.
-// and executes them in order (from left to right). When the first sub-command get executed
-// it passes its outputLeft as a positional parameter to the next sub-command. This continues
-// until there are no more sub-commands to be executed.
-func Pipe(output string, pipe string) (string, error) {
-	// Write the output we would like to pipe into a file
-	err := writeToFile("tmp", output)
+// Pipe executes cmd passing input into it
+// it returns the output of the execution and its error code
+func Pipe(input, cmd string) (string, error) {
+	cmdSlice := splitCmd(cmd)
+	command := exec.Command(cmdSlice[0], cmdSlice[1:]...)
+
+	// stdIn will be connected to the command's standard input when the command starts.
+	stdIn, err := command.StdinPipe()
 	if err != nil {
-		log.Fatal(err)
+		return "", err
+	}
+	defer stdIn.Close()
+
+	// stdOut will be connected to the command's standard output when the command starts
+	stdOut, err := command.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	defer stdOut.Close()
+
+	if err = command.Start(); err != nil {
+		return "", err
 	}
 
-	c1 := exec.Command("cat", "tmp")
+	// Connect input with stdIn
+	stdIn.Write([]byte(input))
+	stdIn.Close()
 
-	slice := splitCmd(pipe)
-
-	c2 := exec.Command(slice[0], slice[1:]...)
-
-	r, w := io.Pipe()
-	c1.Stdout = w
-	c2.Stdin = r
-
-	var b2 bytes.Buffer
-	c2.Stdout = &b2
-
-	c1.Start()
-	c2.Start()
-	c1.Wait()
-	w.Close()
-	c2.Wait()
-	str := ""
-	str = b2.String()
-	if str == "" {
-		err := fmt.Errorf("%s didn't return any result", pipe)
-		deleteFile("tmp")
-		return str, err
+	// Read the output (including errors) of this connection
+	stdBytes, err := ioutil.ReadAll(stdOut)
+	if err != nil {
+		return "", err
 	}
-	deleteFile("tmp")
-	return str, nil
 
+	//  Wait for the command to exit
+	command.Wait()
+
+	output := string(stdBytes)
+	if output == "" {
+		err := fmt.Errorf("%s didn't return any result", cmd)
+		return output, err
+	}
+	return output, nil
 }
 
 // SlowCmd executes a command and waits until it timeouts
@@ -253,25 +255,21 @@ func SlowCmdDir(cmd string, timeout int, directory string) (string, error) {
 	return string(stdout.String()), nil
 }
 
+// splitCmd returns a []string with trimmered whitespace
 func splitCmd(cmd string) []string {
-	slice := strings.Split(cmd, " ")
-	if slice[len(slice)-1] == "" {
-		slice = slice[:len(slice)-1]
-	}
-	if slice[0] == "" {
-		slice = slice[1:]
-	}
-	for i, value := range slice {
+	cmdSlice := strings.Split(cmd, " ")
+	var cmdSliceNoWhitespace []string
+	for _, value := range cmdSlice {
 		if value == "" {
-			slice = append(slice[:i], slice[i+1:]...)
+			continue
 		}
+		cmdSliceNoWhitespace = append(cmdSliceNoWhitespace, value)
 	}
-	return slice
+	return cmdSliceNoWhitespace
 }
 
 // Cmd runs a command and has a default timeout for 2 seconds
 func Cmd(cmd string) (string, error) {
-
 	slice := splitCmd(cmd)
 	execute := exec.Command(slice[0], slice[1:]...)
 
@@ -362,7 +360,7 @@ func CmdRetry(cmd string, timeout int) (string, error) {
 
 	for {
 		if strings.Contains(cmd, "|") {
-			output, err = SplitCmdInPipes(cmd)
+			output, err = CmdWithPipes(cmd)
 		} else {
 			output, err = Cmd(cmd)
 		}
