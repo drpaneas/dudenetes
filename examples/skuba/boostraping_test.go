@@ -11,7 +11,7 @@ import (
 
 var folder string
 
-func youHaveDeployedTheRequiredInfrastructureForSUSECaaSP() error {
+func thereADeployedInfrastructureForLbMastersAndWorkers(arg1, arg2, arg3 int) error {
 
 	// Load the current Terraform output of the working cluster
 	err := skuba.LoadTF()
@@ -20,7 +20,7 @@ func youHaveDeployedTheRequiredInfrastructureForSUSECaaSP() error {
 	}
 
 	// Verify you have what you need
-	err = skuba.Need(1, 1, 3) // LB, Masters, Workers
+	err = skuba.Need(arg1, arg2, arg3) // LB, Masters, Workers
 	if err != nil {
 		return err
 	}
@@ -89,8 +89,8 @@ func theNodeShouldBeReadyWithinSec(arg1 string, arg2 int) error {
 	return nil
 }
 
-func FeatureContext(s *godog.Suite) {
-	s.Step(`^you have deployed the required infrastructure for SUSE CaaSP$`, youHaveDeployedTheRequiredInfrastructureForSUSECaaSP)
+func BootstrapContext(s *godog.Suite) {
+	s.Step(`^there a deployed infrastructure for (\d+) lb, (\d+) masters and (\d+) workers$`, thereADeployedInfrastructureForLbMastersAndWorkers)
 	s.Step(`^you do "([^"]*)"$`, youDo)
 	s.Step(`^"([^"]*)" dir should be created containing the IP of the loadbalancer "([^"]*)"$`, dirShouldBeCreatedContainingTheIPOfTheLoadbalancer)
 	s.Step(`^you run "([^"]*)" with a timeout of (\d+) seconds$`, youRunWithATimeoutOfSeconds)
