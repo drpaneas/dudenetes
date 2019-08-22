@@ -19,5 +19,5 @@ package main
 import "github.com/drpaneas/dudenetes/cmd"
 
 func main() {
-  cmd.Execute()
+	cmd.Execute()
 }
