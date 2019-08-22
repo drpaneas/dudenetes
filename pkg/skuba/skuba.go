@@ -105,7 +105,7 @@ func FindEnvVar(str, before, after string) string {
 func ReplaceVarsWithEnvs(cmd string) string {
 	if strings.Contains(cmd, "$") {
 		v := FindEnvVar(cmd, "$", " ")
-		cmd = strings.ReplaceAll(cmd, fmt.Sprintf("$%s", v), os.Getenv(v))
+		cmd = strings.Replace(cmd, fmt.Sprintf("$%s", v), os.Getenv(v), -1)
 	}
 	return cmd
 }
