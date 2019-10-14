@@ -23,28 +23,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
-
-// TerraformOutput struct for SUSE CaaSP skuba
-type TerraformOutput struct {
-	IPLoadBalancer struct {
-		Sensitive bool     `json:"sensitive"`
-		Type      string   `json:"type"`
-		Value     []string `json:"value"`
-	} `json:"ip_load_balancer"`
-	IPMasters struct {
-		Sensitive bool     `json:"sensitive"`
-		Type      string   `json:"type"`
-		Value     []string `json:"value"`
-	} `json:"ip_masters"`
-	IPWorkers struct {
-		Sensitive bool     `json:"sensitive"`
-		Type      string   `json:"type"`
-		Value     []string `json:"value"`
-	} `json:"ip_workers"`
-}
 
 var masters, workers, loadbalancers []string
 
@@ -55,129 +37,7 @@ var testCmd = &cobra.Command{
 	Long: `Executes a test scenario
 
 If '--file' is not specified it executes all the *.feature files found at the current working directory`,
-	Run: func(cmd *cobra.Command, args []string) {
-		file, _ := cmd.Flags().GetString("file")
-		if file == "" {
-			// Use the current directory
-			dir, err := os.Getwd()
-			if err != nil {
-				log.Fatal(err)
-			}
-			file = dir
-		}
-		// Check if file or dir exists
-		if _, err := os.Stat(file); err != nil {
-			if os.IsNotExist(err) {
-				log.Fatal(err)
-			} else {
-				log.Fatalf("Permission Denied: %s", err)
-			}
-		}
-
-		// SUSE CaaSP Cluster (read the terraform output)
-		skuba, _ := cmd.Flags().GetString("skuba")
-		if skuba != "" {
-			// Check if file or dir exists
-			if _, err := os.Stat(skuba); err != nil {
-				if os.IsNotExist(err) {
-					log.Fatal(err)
-				} else {
-					log.Fatalf("Permission Denied: %s", err)
-				}
-			}
-			terraformOutput := skuba
-			terraformJSON := exec.Command("terraform", "output", "-json")
-			terraformJSON.Dir = terraformOutput
-			out, err := terraformJSON.Output()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			var dat map[string]interface{}
-
-			if err := json.Unmarshal(out, &dat); err != nil {
-				panic(err)
-			}
-
-			for key, value := range dat {
-				for k, v := range value.(map[string]interface{}) {
-					if key == "ip_load_balancer" && k == "value" {
-						lbArray := v.([]interface{})
-						for _, ip := range lbArray {
-							//fmt.Println(i, ip)
-							loadbalancers = append(loadbalancers, ip.(string))
-						}
-					}
-					if key == "ip_masters" && k == "value" {
-						mastersArray := v.([]interface{})
-						for _, ip := range mastersArray {
-							//fmt.Println(i, ip)
-							masters = append(masters, ip.(string))
-						}
-					}
-					if key == "ip_workers" && k == "value" {
-						workersArray := v.([]interface{})
-						for _, ip := range workersArray {
-							//fmt.Println(i, ip)
-							workers = append(workers, ip.(string))
-						}
-					}
-				}
-			}
-
-			var d []string
-			for _, v := range loadbalancers {
-				d = append(d, fmt.Sprintf("loadbalancer=%s", v))
-			}
-
-			for i, v := range masters {
-				d = append(d, fmt.Sprintf("master%d=%s", i+1, v))
-			}
-
-			for i, v := range workers {
-				d = append(d, fmt.Sprintf("worker%d=%s", i+1, v))
-			}
-
-			// Write the configuration to local .env file
-			f, err := os.Create(".env")
-			if err != nil {
-				fmt.Println(err)
-				f.Close()
-				return
-			}
-			for _, v := range d {
-				fmt.Fprintln(f, v)
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
-			}
-			err = f.Close()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-		}
-
-		// Logging capability
-		logfile := fmt.Sprintf("%s.log", file)
-		f, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("Error opening file: %v", err)
-		}
-		defer f.Close()
-
-		// Run the system command and print the output live on the screen
-		mwriter := io.MultiWriter(f, os.Stdout)
-		godog := exec.Command("godog", file)
-		godog.Stderr = mwriter
-		godog.Stdout = mwriter
-		err = godog.Run() //blocks until sub process is complete
-		if err != nil {
-			log.Fatal(err)
-		}
-
-	},
+	Run: run,
 }
 
 func init() {
@@ -194,4 +54,140 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// testCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func run(cmd *cobra.Command, args []string) {
+	file, _ := cmd.Flags().GetString("file")
+	if file == "" {
+		// Use the current directory
+		dir, err := os.Getwd()
+		if err != nil {
+			log.Fatal(err)
+		}
+		file = dir
+	}
+	// Check if file or dir exists
+	if _, err := os.Stat(file); err != nil {
+		if os.IsNotExist(err) {
+			log.Fatal(err)
+		} else {
+			log.Fatalf("Permission Denied: %s", err)
+		}
+	}
+
+	// SUSE CaaSP Cluster (read the terraform output)
+	skuba, _ := cmd.Flags().GetString("skuba")
+	if skuba != "" {
+		// Check if file or dir exists
+		if _, err := os.Stat(skuba); err != nil {
+			if os.IsNotExist(err) {
+				log.Fatal(err)
+			} else {
+				log.Fatalf("Permission Denied: %s", err)
+			}
+		}
+		terraformOutput := skuba
+		terraformJSON := exec.Command("terraform", "output", "-json")
+		terraformJSON.Dir = terraformOutput
+		out, err := terraformJSON.Output()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		loadbalancers, masters, workers, err = unmarshalOutputResult(out)
+		if err != nil {
+			panic(err)
+		}
+
+		formatedValues := formatValues(loadbalancers, masters, workers)
+		output := strings.Join(formatedValues, "\n")
+
+		// Write the configuration to local .env file
+		f, err := os.Create(".env")
+		if err != nil {
+			fmt.Println(err)
+			f.Close()
+			return
+		}
+		defer f.Close()
+
+		fmt.Fprintln(f, output)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// Logging capability
+	logfile := fmt.Sprintf("%s.log", file)
+	f, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("Error opening file: %v", err)
+	}
+	defer f.Close()
+
+	// Run the system command and print the output live on the screen
+	mwriter := io.MultiWriter(f, os.Stdout)
+	godog := exec.Command("godog", file)
+	godog.Stderr = mwriter
+	godog.Stdout = mwriter
+	err = godog.Run() //blocks until sub process is complete
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func unmarshalOutputResult(out []byte) ([]string, []string, []string, error) {
+	var lbs, masters, workers []string
+	var dat map[string]interface{}
+
+	if err := json.Unmarshal(out, &dat); err != nil {
+		return nil, nil, nil, err
+	}
+
+	for key, value := range dat {
+		for k, v := range value.(map[string]interface{}) {
+			if key == "ip_load_balancer" && k == "value" {
+				if _, ok := v.(string); ok {
+					lbs = append(lbs, v.(string))
+				} else if _, ok := v.([]interface{}); ok {
+					lbArray := v.([]interface{})
+					for _, ip := range lbArray {
+						fmt.Printf("ip: %s\n", ip.(string))
+						lbs = append(lbs, ip.(string))
+					}
+				}
+			}
+			if key == "ip_masters" && k == "value" {
+				mastersArray := v.([]interface{})
+				for _, ip := range mastersArray {
+					//fmt.Println(i, ip)
+					masters = append(masters, ip.(string))
+				}
+			}
+			if key == "ip_workers" && k == "value" {
+				workersArray := v.([]interface{})
+				for _, ip := range workersArray {
+					//fmt.Println(i, ip)
+					workers = append(workers, ip.(string))
+				}
+			}
+		}
+	}
+	return lbs, masters, workers, nil
+}
+
+func formatValues(loadbalancers []string, masters []string, workers []string) []string {
+	var d []string
+	for _, v := range loadbalancers {
+		d = append(d, fmt.Sprintf("loadbalancer=%s", v))
+	}
+
+	for i, v := range masters {
+		d = append(d, fmt.Sprintf("master%d=%s", i+1, v))
+	}
+
+	for i, v := range workers {
+		d = append(d, fmt.Sprintf("worker%d=%s", i+1, v))
+	}
+	return d
 }
